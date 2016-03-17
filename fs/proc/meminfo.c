@@ -26,6 +26,7 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 	unsigned long allowed;
 	struct vmalloc_info vmi;
 	long cached;
+	long available;
 	unsigned long pages[NR_LRU_LISTS];
 	int lru;
 
@@ -48,6 +49,8 @@ static int meminfo_proc_show(struct seq_file *m, void *v)
 
 	for (lru = LRU_BASE; lru < NR_LRU_LISTS; lru++)
 		pages[lru] = global_page_state(NR_LRU_BASE + lru);
+
+	available = si_mem_available();
 
 	/*
 	 * Tagged format, for easy grepping and expansion.
