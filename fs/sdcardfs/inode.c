@@ -85,6 +85,10 @@ static int sdcardfs_create(struct inode *dir, struct dentry *dentry,
 	/* temporarily change umask for lower fs write */
 	saved_fs = current->fs;
 	copied_fs = copy_fs_struct(current->fs);
+	if (!copied_fs) {
+		err = -ENOMEM;
+		goto out_unlock;
+	}
 	current->fs = copied_fs;
 	current->fs->umask = 0;
 	err = vfs_create(lower_parent_dentry->d_inode, lower_dentry, mode, nd);
@@ -315,6 +319,10 @@ static int sdcardfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	/* temporarily change umask for lower fs write */
 	saved_fs = current->fs;
 	copied_fs = copy_fs_struct(current->fs);
+	if (!copied_fs) {
+		err = -ENOMEM;
+		goto out_unlock;
+	}
 	current->fs = copied_fs;
 	current->fs->umask = 0;
 	err = vfs_mkdir(lower_parent_dentry->d_inode, lower_dentry, mode);
