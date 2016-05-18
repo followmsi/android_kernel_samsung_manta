@@ -322,6 +322,35 @@ static inline void sdcardfs_put_reset_##pname(const struct dentry *dent) \
 SDCARDFS_DENT_FUNC(lower_path)
 SDCARDFS_DENT_FUNC(orig_path)
 
+/* grab a refererence if we aren't linking to ourself */
+static inline void set_top(struct sdcardfs_inode_info *info, struct inode *top)
+{
+	struct inode *old_top = NULL;
+	BUG_ON(IS_ERR_OR_NULL(top));
+	if (info->top && info->top != &info->vfs_inode) {
+		old_top = info->top;
+	}
+	if (top != &info->vfs_inode)
+		igrab(top);
+	info->top = top;
+	iput(old_top);
+}
+
+static inline struct inode *grab_top(struct sdcardfs_inode_info *info)
+{
+	struct inode *top = info->top;
+	if (top) {
+		return igrab(top);
+	} else {
+		return NULL;
+	}
+}
+
+static inline void release_top(struct sdcardfs_inode_info *info)
+{
+	iput(info->top);
+}
+
 static inline int get_gid(struct sdcardfs_inode_info *info) {
 	struct sdcardfs_sb_info *sb_info = SDCARDFS_SB(info->vfs_inode.i_sb);
 	if (sb_info->options.gid == AID_SDCARD_RW) {
@@ -338,7 +367,7 @@ static inline int get_gid(struct sdcardfs_inode_info *info) {
 static inline int get_mode(struct sdcardfs_inode_info *info) {
 	int owner_mode;
 	int filtered_mode;
-	struct sdcardfs_sb_info *sb_info = SDCARDFS_SB(info->vfs_inode.i_sb);
+	struct sdcardfs_sb_info * sb_info = SDCARDFS_SB(info->vfs_inode.i_sb);
 	int visible_mode = 0775 & ~sb_info->options.mask;
 
 	if (info->perm == PERM_PRE_ROOT) {
