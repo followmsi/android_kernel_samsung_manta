@@ -558,7 +558,7 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	 * we pass along new_dentry for the name.*/
 	get_derived_permission_new(new_dentry->d_parent, old_dentry, new_dentry);
 	fix_derived_permission(old_dentry->d_inode);
-	fixup_top_recursive(old_dentry);
+	get_derive_permissions_recursive(old_dentry);
 
 out_err:
 	mnt_drop_write(lower_new_path.mnt);
