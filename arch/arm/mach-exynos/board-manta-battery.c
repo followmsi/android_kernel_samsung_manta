@@ -330,6 +330,10 @@ static enum manta_charge_source check_samsung_charger(
 			charge_source = MANTA_CHARGE_SOURCE_AC_SAMSUNG;
 	}
 
+	// Tell me again why I should care.
+	if (charge_source == MANTA_CHARGE_SOURCE_AC_OTHER)
+		charge_source = MANTA_CHARGE_SOURCE_AC_SAMSUNG;
+
 	return charge_source;
 }
 
@@ -641,8 +645,8 @@ static struct smb347_charger_platform_data smb347_chg_pdata = {
 	.pre_charge_current = 200000,
 	.termination_current = 250000,
 	.pre_to_fast_voltage = 2600000,
-	.mains_current_limit = 2000000,
-	.usb_hc_current_limit = 1800000,
+	.mains_current_limit = 2500000,
+	.usb_hc_current_limit = 2500000,
 	.irq_gpio = GPIO_TA_NCHG,
 	.disable_stat_interrupts = true,
 	.en_gpio = GPIO_TA_EN,
@@ -667,7 +671,7 @@ static void exynos5_manta_set_mains_current(void)
 
 	value.intval =
 		manta_bat_charge_source[CHARGE_CONNECTOR_POGO] ==
-		   MANTA_CHARGE_SOURCE_USB ? 500000 : 2000000;
+		   MANTA_CHARGE_SOURCE_USB ? 500000 : 2500000;
 
 	ret = manta_bat_smb347_mains->set_property(manta_bat_smb347_mains,
 					 POWER_SUPPLY_PROP_CURRENT_MAX,
