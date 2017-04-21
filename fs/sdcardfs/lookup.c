@@ -253,6 +253,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	/* now start the actual lookup procedure */
 	lower_dir_dentry = lower_parent_path->dentry;
 	lower_dir_mnt = lower_parent_path->mnt;
+
 	/* Use vfs_path_lookup to check if the dentry exists or not */
 	err = vfs_path_lookup(lower_dir_dentry, lower_dir_mnt, name->name, 0,
 				&lower_nd.path);
@@ -332,12 +333,17 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	/* instatiate a new negative dentry */
 	dname.name = name->name;
 	dname.len = name->len;
-	dname.hash = full_name_hash(dname.name, dname.len);
-	lower_dentry = d_lookup(lower_dir_dentry, &dname);
+
+	/* See if the low-level filesystem might want
+	 * to use its own hash
+	 */
+	lower_dentry = d_hash_and_lookup(lower_dir_dentry, &dname);
+	if (IS_ERR(lower_dentry))
+		return lower_dentry;
 	if (!lower_dentry) {
 		/* We called vfs_path_lookup earlier, and did not get a negative
-		 * dentry then. Don't confuse the lower filesystem by forcing one
-		 * on it now...
+		 * dentry then. Don't confuse the lower filesystem by forcing
+		 * one on it now...
 		 */
 		err = -ENOENT;
 		goto out;
