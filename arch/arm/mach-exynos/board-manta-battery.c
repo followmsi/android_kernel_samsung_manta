@@ -671,7 +671,7 @@ static void exynos5_manta_set_mains_current(void)
 
 	value.intval =
 		manta_bat_charge_source[CHARGE_CONNECTOR_POGO] ==
-		   MANTA_CHARGE_SOURCE_USB ? 500000 : 2000000;
+		   MANTA_CHARGE_SOURCE_USB ? 500000 : 2500000;
 
 	ret = manta_bat_smb347_mains->set_property(manta_bat_smb347_mains,
 					 POWER_SUPPLY_PROP_CURRENT_MAX,
