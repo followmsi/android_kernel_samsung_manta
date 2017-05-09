@@ -341,6 +341,8 @@ struct mxt_fw_info {
 	struct mxt_data *data;
 };
 
+unsigned int dt2w_enable = 0;
+
 static bool mxt_object_readable(unsigned int type)
 {
 	switch (type) {
@@ -735,11 +737,16 @@ inline u64 get_last_input_time(void) {
 	return last_input_time;
 }
 
+bool screen_off = false;
+int count = 0;
+struct mutex dt2w_lock;
+
 static void mxt_input_touchevent(struct mxt_data *data,
 				      struct mxt_message *message, int id)
 {
 	struct mxt_finger *finger = data->finger;
 	struct device *dev = &data->client->dev;
+	struct input_dev *input_dev = data->input_dev;
 	u8 status = message->message[0];
 	int x;
 	int y;
@@ -792,8 +799,25 @@ static void mxt_input_touchevent(struct mxt_data *data,
 	finger[id].pressure = pressure;
 	finger[id].vector = vector;
 
-	if (status & MXT_PRESS)
+	if (status & MXT_PRESS) {
+		if(dt2w_enable && screen_off) {
+			if(ktime_to_us(ktime_get()) - last_input_time > 500000)
+				count = 0;
+			count++;
+			if(count >= 2) {
+					if(mutex_trylock(&dt2w_lock)) {
+						dev_info(dev, "DOUBLETAP!!!");
+						input_event(input_dev, EV_KEY, KEY_POWER, 1);
+						input_event(input_dev, EV_SYN, 0, 0);
+						msleep(125);
+						input_event(input_dev, EV_KEY, KEY_POWER, 0);
+						input_event(input_dev, EV_SYN, 0, 0);
+						mutex_unlock(&dt2w_lock);
+					}
+			}
+		}
 		last_input_time = ktime_to_us(ktime_get());
+	}
 	mxt_input_report(data);
 }
 
@@ -1632,12 +1656,32 @@ err_power_on:
 	return count;
 }
 
+static ssize_t show_dt2w_enable(struct kobject *kobj, struct attribute *attr, char *buf){
+	return snprintf(buf, PAGE_SIZE, "%d\n", dt2w_enable);
+}
+
+static ssize_t store_dt2w_enable(struct kobject *kobj, struct attribute *attr, const char *buf,
+	size_t count) {
+
+	int ret;
+	bool val;
+
+	ret = kstrtouint(buf, 10, &val);
+	if (ret < 0)
+		return ret;
+	dt2w_enable = val;
+
+	return count;
+}
+
 static DEVICE_ATTR(object, 0444, mxt_object_show, NULL);
 static DEVICE_ATTR(update_fw, 0664, NULL, mxt_update_fw_store);
+static DEVICE_ATTR(dt2w_enable, 0664, show_dt2w_enable, store_dt2w_enable);
 
 static struct attribute *mxt_attrs[] = {
 	&dev_attr_object.attr,
 	&dev_attr_update_fw.attr,
+	&dev_attr_dt2w_enable.attr,
 	NULL
 };
 
@@ -1648,6 +1692,9 @@ static const struct attribute_group mxt_attr_group = {
 static int mxt_start(struct mxt_data *data)
 {
 	int error = 0;
+
+
+	screen_off = false;
 
 	if (data->enabled) {
 		dev_err(&data->client->dev, "Touch is already started\n");
@@ -1666,6 +1713,11 @@ static int mxt_start(struct mxt_data *data)
 static void mxt_stop(struct mxt_data *data)
 {
 	int id, count = 0;
+
+	if(dt2w_enable) {
+		screen_off = true;
+		return;
+	}
 
 	if (!data->enabled) {
 		dev_err(&data->client->dev, "Touch is already stopped\n");
@@ -1749,6 +1801,7 @@ static int mxt_ts_finish_init(struct mxt_data *data)
 	 * it will be enabled in open function
 	 */
 	mxt_stop(data);
+	input_set_capability(data->input_dev, EV_KEY, KEY_POWER);
 
 	/* for blocking to be excuted open function untile finishing ts init */
 	complete_all(&data->init_done);
@@ -1970,6 +2023,8 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	__set_bit(EV_ABS, input_dev->evbit);
 	__set_bit(INPUT_PROP_DIRECT, input_dev->propbit);
 
+	//
+
 	input_mt_init_slots(input_dev, MXT_MAX_FINGER);
 	input_set_abs_params(input_dev, ABS_MT_TOUCH_MAJOR,
 			     0, MXT_MAX_AREA, 0, 0);
@@ -2017,6 +2072,8 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	error = mxt_ts_init(data);
 	if (error)
 		goto err_init;
+
+	mutex_init(&dt2w_lock);
 
 	return 0;
 
@@ -2077,7 +2134,7 @@ static int mxt_suspend(struct device *dev)
 
 	mutex_unlock(&input_dev->mutex);
 
-	return 0;
+	return (dt2w_enable) ? 1 : 0;
 }
 
 static int mxt_resume(struct device *dev)
