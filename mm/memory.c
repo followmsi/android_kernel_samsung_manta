@@ -57,6 +57,7 @@
 #include <linux/swapops.h>
 #include <linux/elf.h>
 #include <linux/gfp.h>
+#include <linux/bug.h>
 
 #include <asm/io.h>
 #include <asm/pgalloc.h>
@@ -709,6 +710,9 @@ static void print_bad_pte(struct vm_area_struct *vma, unsigned long addr,
 	if (vma->vm_file && vma->vm_file->f_op)
 		print_symbol(KERN_ALERT "vma->vm_file->f_op->mmap: %s\n",
 				(unsigned long)vma->vm_file->f_op->mmap);
+
+	BUG_ON(PANIC_CORRUPTION);
+
 	dump_stack();
 	add_taint(TAINT_BAD_PAGE);
 }
@@ -1447,6 +1451,24 @@ int zap_vma_ptes(struct vm_area_struct *vma, unsigned long address,
 }
 EXPORT_SYMBOL_GPL(zap_vma_ptes);
 
+static inline bool can_follow_write_pte(pte_t pte, struct page *page,
+					unsigned int flags)
+{
+	if (pte_write(pte))
+		return true;
+
+	/*
+	 * Make sure that we are really following CoWed page. We do not really
+	 * have to care about exclusiveness of the page because we only want
+	 * to ensure that once COWed page hasn't disappeared in the meantime
+	 * or it hasn't been merged to a KSM page.
+	 */
+	if ((flags & FOLL_FORCE) && (flags & FOLL_COW))
+		return page && PageAnon(page) && !PageKsm(page);
+
+	return false;
+}
+
 /**
  * follow_page - look up a page descriptor from a user-virtual address
  * @vma: vm_area_struct mapping @address
@@ -1529,10 +1551,13 @@ split_fallthrough:
 	pte = *ptep;
 	if (!pte_present(pte))
 		goto no_page;
-	if ((flags & FOLL_WRITE) && !pte_write(pte))
-		goto unlock;
 
 	page = vm_normal_page(vma, address, pte);
+	if ((flags & FOLL_WRITE) && !can_follow_write_pte(pte, page, flags)) {
+		pte_unmap_unlock(ptep, ptl);
+		return NULL;
+	}
+
 	if (unlikely(!page)) {
 		if ((flags & FOLL_DUMP) ||
 		    !is_zero_pfn(pte_pfn(pte)))
@@ -1575,7 +1600,7 @@ split_fallthrough:
 			unlock_page(page);
 		}
 	}
-unlock:
+
 	pte_unmap_unlock(ptep, ptl);
 out:
 	return page;
@@ -1809,17 +1834,13 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				 * The VM_FAULT_WRITE bit tells us that
 				 * do_wp_page has broken COW when necessary,
 				 * even if maybe_mkwrite decided not to set
-				 * pte_write. We can thus safely do subsequent
-				 * page lookups as if they were reads. But only
-				 * do so when looping for pte_write is futile:
-				 * in some cases userspace may also be wanting
-				 * to write to the gotten user page, which a
-				 * read fault here might prevent (a readonly
-				 * page might get reCOWed by userspace write).
+				 * pte_write. We cannot simply drop FOLL_WRITE
+				 * here because the COWed page might be gone by
+				 * the time we do the subsequent page lookups.
 				 */
 				if ((ret & VM_FAULT_WRITE) &&
 				    !(vma->vm_flags & VM_WRITE))
-					foll_flags &= ~FOLL_WRITE;
+					foll_flags |= FOLL_COW;
 
 				cond_resched();
 			}
@@ -1874,10 +1895,15 @@ int fixup_user_fault(struct task_struct *tsk, struct mm_struct *mm,
 		     unsigned long address, unsigned int fault_flags)
 {
 	struct vm_area_struct *vma;
+	vm_flags_t vm_flags;
 	int ret;
 
 	vma = find_extend_vma(mm, address);
 	if (!vma || address < vma->vm_start)
+		return -EFAULT;
+
+	vm_flags = (fault_flags & FAULT_FLAG_WRITE) ? VM_WRITE : VM_READ;
+	if (!(vm_flags & vma->vm_flags))
 		return -EFAULT;
 
 	ret = handle_mm_fault(mm, vma, address, fault_flags);
@@ -2972,7 +2998,6 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	delayacct_set_flag(DELAYACCT_PF_SWAPIN);
 	page = lookup_swap_cache(entry);
 	if (!page) {
-		grab_swap_token(mm); /* Contend for token _before_ read-in */
 		page = swapin_readahead(entry,
 					GFP_HIGHUSER_MOVABLE, vma, address);
 		if (!page) {
@@ -3002,6 +3027,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	}
 
 	locked = lock_page_or_retry(page, mm, flags);
+
 	delayacct_clear_flag(DELAYACCT_PF_SWAPIN);
 	if (!locked) {
 		ret |= VM_FAULT_RETRY;

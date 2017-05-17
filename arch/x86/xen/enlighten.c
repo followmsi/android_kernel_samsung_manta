@@ -860,7 +860,7 @@ static void xen_load_sp0(struct tss_struct *tss,
 	xen_mc_issue(PARAVIRT_LAZY_CPU);
 }
 
-static void xen_set_iopl_mask(unsigned mask)
+void xen_set_iopl_mask(unsigned mask)
 {
 	struct physdev_set_iopl set_iopl;
 
@@ -1488,6 +1488,10 @@ asmlinkage void __init xen_start_kernel(void)
 
 		/* Make sure ACS will be enabled */
 		pci_request_acs();
+
+		/* Avoid searching for BIOS MP tables */
+		x86_init.mpparse.find_smp_config = x86_init_noop;
+		x86_init.mpparse.get_smp_config = x86_init_uint_noop;
 	}
 #ifdef CONFIG_PCI
 	/* PCI BIOS service won't work from a PV guest. */
