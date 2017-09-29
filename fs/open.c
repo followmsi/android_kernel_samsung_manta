@@ -411,7 +411,7 @@ SYSCALL_DEFINE1(fchdir, unsigned int, fd)
 	int error;
 
 	error = -EBADF;
-	file = fget_raw_light(fd, &fput_needed);
+	file = fget(fd);
 	if (!file)
 		goto out;
 
@@ -426,7 +426,7 @@ SYSCALL_DEFINE1(fchdir, unsigned int, fd)
 	if (!error)
 		set_fs_pwd(current->fs, &file->f_path);
 out_putf:
-	fput_light(file, fput_needed);
+	fput(file);
 out:
 	return error;
 }
