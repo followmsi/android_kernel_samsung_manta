@@ -481,7 +481,7 @@ static int sdcardfs_mknod(struct inode *dir, struct dentry *dentry, int mode,
 	if (err)
 		goto out;
 
-	err = sdcardfs_interpose(dentry, dir->i_sb, &lower_path, SDCARDFS_I(dir)->userid);
+	err = sdcardfs_interpose(dentry, dir->i_sb, &lower_path);
 	if (err)
 		goto out;
 	fsstack_copy_attr_times(dir, sdcardfs_lower_inode(dir));
