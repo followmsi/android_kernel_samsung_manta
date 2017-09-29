@@ -25,7 +25,6 @@
 #include <linux/radix-tree.h>
 #include <linux/dcache.h>
 
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/slab.h>
@@ -767,7 +766,6 @@ static ssize_t packages_list_show(struct packages *packages,
 	struct hashtable_entry *hash_cur_app;
 	struct hashtable_entry *hash_cur_user;
 	struct hlist_node *h_t;
-	struct hlist_node *h_n;
 	int i;
 	int count = 0, written = 0;
 	const char errormsg[] = "<truncated>\n";
@@ -791,7 +789,6 @@ static ssize_t packages_list_show(struct packages *packages,
 		}
 		count += written;
 	}
-
 	rcu_read_unlock();
 
 	return count;
