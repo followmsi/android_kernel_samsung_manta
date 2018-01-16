@@ -3292,7 +3292,7 @@ int vfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	if (!error)
 		fsnotify_move(old_dir, new_dir, old_name.name, is_dir,
 			      new_dentry->d_inode, old_dentry);
-	release_dentry_name_snapshot(&old_name);
+	take_dentry_name_snapshot(&old_name, old_dentry);
 
 	return error;
 }
