@@ -53,7 +53,7 @@
 
 #define CHIP_ID_REG		(S5P_VA_CHIPID + 0x4)
 
-#define MAX_VDD_SC		1400000 /* uV */
+#define MAX_VDD_SC		1500000 /* uV */
 #define MIN_VDD_SC		 700000 /* uV */
 
 enum exynos5250_fused_vol_lock_t {
@@ -73,10 +73,10 @@ static int arm_vol_lock_level;
 static unsigned int asv_group[ID_END];
 
 static unsigned int exynos5250_default_asv_max_volt[] = {
-	[ID_ARM] = 1300000,
+	[ID_ARM] = 1500000,
 	[ID_INT] = 1037500,
 	[ID_MIF] = 1125000,
-	[ID_G3D] = 1200000,
+	[ID_G3D] = 1400000,
 };
 
 static unsigned int asv_group_nr[] = {
