@@ -126,6 +126,7 @@ struct cpufreq_policy {
 #define CPUFREQ_POSTCHANGE	(1)
 #define CPUFREQ_RESUMECHANGE	(8)
 #define CPUFREQ_SUSPENDCHANGE	(9)
+#define FREQ_STEPS		21
 
 struct cpufreq_freqs {
 	unsigned int cpu;	/* cpu nr */
